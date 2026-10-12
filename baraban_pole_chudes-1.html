@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Барабан «Поле чудес»</title>
+<style>
+  :root { --bg:#101827; --panel:#172338; --gold:#ffd166; --text:#f7f9ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; padding:22px 14px 30px; color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(circle at top,#263c61 0,#101827 55%); text-align:center; }
+  h1 { margin:8px 0 4px; font-size:clamp(25px,6vw,36px); }
+  .sub { margin:0 0 18px; color:#cbd6e8; }
+  .wrap { width:min(92vw,430px); margin:0 auto; position:relative; }
+  canvas { display:block; width:100%; height:auto; filter:drop-shadow(0 12px 20px #0008); }
+  .pointer { position:absolute; top:-5px; left:50%; transform:translateX(-50%);
+    width:0;height:0;border-left:19px solid transparent;border-right:19px solid transparent;
+    border-top:36px solid var(--gold); z-index:2; filter:drop-shadow(0 3px 2px #0008); }
+  button { border:0; border-radius:15px; padding:15px 25px; margin:18px 0 10px;
+    background:linear-gradient(135deg,#ffe08a,#ffad33); color:#241700; font-size:20px;
+    font-weight:900; box-shadow:0 5px 0 #a85d13; cursor:pointer; min-width:190px; }
+  button:active { transform:translateY(3px); box-shadow:0 2px 0 #a85d13; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .result { min-height:66px; margin:12px auto 0; width:min(92vw,430px); padding:14px;
+    border:1px solid #ffffff25; border-radius:16px; background:#ffffff0d; }
+  .result small { display:block; color:#bdcbe0; font-size:13px; }
+  #winner { font-size:28px; font-weight:900; color:var(--gold); }
+  .note { color:#aab8cc; font-size:12px; margin-top:18px; }
+</style>
+</head>
+<body>
+  <h1>🎡 Поле чудес</h1>
+  <p class="sub">Крути барабан — победитель выбирается случайно!</p>
+  <div class="wrap">
+    <div class="pointer"></div>
+    <canvas id="wheel" width="900" height="900" aria-label="Колесо участников"></canvas>
+  </div>
+  <button id="spin">КРУТИТЬ!</button>
+  <div class="result"><small>Выпал участник:</small><div id="winner">Кто же? 🤔</div></div>
+  <p class="note">Имена и смайлики находятся в отдельных полях. После каждого вращения предыдущий результат не повторяется при следующем запуске.</p>
+<script>
+const entries = [
+  {label:"Анис", kind:"name"},
+  {label:"💯", kind:"emoji"},
+  {label:"Шерзод", kind:"name"},
+  {label:"👑", kind:"emoji"},
+  {label:"Шавкат", kind:"name"},
+  {label:"😈", kind:"emoji"},
+  {label:"Саид", kind:"name"},
+  {label:"🛑", kind:"emoji"},
+  {label:"Дурахшон", kind:"name"},
+  {label:"🐐", kind:"emoji"}
+];
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const n = entries.length, arc = Math.PI * 2 / n;
+const colors = ['#f94144','#277da1','#43aa8b','#f9c74f','#9b5de5'];
+let angle = 0, spinning = false, lastWinner = -1;
+function draw() {
+  const cx=450, cy=450, r=420;
+  ctx.clearRect(0,0,900,900);
+  ctx.save(); ctx.translate(cx,cy);
+  for(let i=0;i<n;i++) {
+    const start = angle + i*arc - Math.PI/2;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r,start,start+arc); ctx.closePath();
+    ctx.fillStyle=colors[i]; ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=7; ctx.stroke();
+    const mid=start+arc/2;
+    ctx.save(); ctx.rotate(mid);
+    ctx.textAlign='right'; ctx.fillStyle='#fff';
+    ctx.shadowColor='#0008'; ctx.shadowBlur=4;
+    ctx.font = entries[i].kind === 'emoji'
+      ? '64px system-ui, sans-serif'
+      : 'bold 35px system-ui, sans-serif';
+    ctx.fillText(entries[i].label, r-35, 12);
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(0,0,67,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+  ctx.lineWidth=10; ctx.strokeStyle='#ffd166'; ctx.stroke();
+  ctx.fillStyle='#172338'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='bold 32px system-ui'; ctx.fillText('GO!',0,2);
+  ctx.restore();
+}
+draw();
+document.getElementById('spin').addEventListener('click',()=>{
+  if(spinning) return;
+  spinning=true;
+  const btn=document.getElementById('spin'); btn.disabled=true; btn.textContent='КРУТИТСЯ…';
+  let choices=entries.map((_,i)=>i).filter(i=>i!==lastWinner);
+  if(!choices.length) choices=entries.map((_,i)=>i);
+  const chosen=choices[Math.floor(Math.random()*choices.length)];
+  // Pointer is at the top. Aim the chosen segment's center at the pointer.
+  const targetMod = (Math.PI*2 - (chosen*arc + arc/2)) % (Math.PI*2);
+  const currentMod = ((angle % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+  const delta = (targetMod-currentMod+Math.PI*2)%(Math.PI*2);
+  const startAngle=angle, total= Math.PI*2*(5+Math.floor(Math.random()*4))+delta;
+  const duration=4200+Math.random()*700, start=performance.now();
+  function frame(now) {
+    const t=Math.min(1,(now-start)/duration);
+    const ease=1-Math.pow(1-t,4);
+    angle=startAngle+total*ease; draw();
+    if(t<1) requestAnimationFrame(frame);
+    else {
+      angle=targetMod; draw(); lastWinner=chosen;
+      document.getElementById('winner').textContent=entries[chosen].label;
+      btn.disabled=false; btn.textContent='КРУТИТЬ ЕЩЁ'; spinning=false;
+    }
+  }
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
